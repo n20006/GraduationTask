@@ -3,10 +3,11 @@ import time
 
 import requests
 
-# 事前に取得したYouTube API key
+# YouTube API key
 YT_API_KEY = "YOURE_API_KEY"
 
 
+# Get activeLiveChatId youtube url
 def get_chat_id(yt_url):
     """
     https://developers.google.com/youtube/v3/docs/videos/list?hl=ja
@@ -29,6 +30,7 @@ def get_chat_id(yt_url):
     return chat_id
 
 
+# Get chat data
 def get_chat(chat_id, pageToken, log_file):
     """
     https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list
@@ -66,16 +68,18 @@ def get_chat(chat_id, pageToken, log_file):
     return data["nextPageToken"]
 
 
+# Set get and sleep times
+# Write chat log in channelid.txt
 def main(yt_url):
     slp_time = 10  # sec
-    iter_times = 1  # 回
+    iter_times = 1  # times
     take_time = slp_time / 60 * iter_times
-    print("{}分後終了予定".format(take_time))
+    print("End in {} min".format(take_time))
     print("work on {}".format(yt_url))
 
     log_file = yt_url.replace("https://www.youtube.com/watch?v=", "") + ".txt"
     with open(log_file, "a") as f:
-        print("{} のチャット欄を記録します。".format(yt_url), file=f)
+        print("Record {}'s log".format(yt_url), file=f)
     chat_id = get_chat_id(yt_url)
 
     nextPageToken = None

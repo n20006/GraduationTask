@@ -1,61 +1,94 @@
 import json
+import time
 
 import requests
-from bs4 import BeautifulSoup
 
-target_url = input()
-dict_str = ""
-next_url = ""
-comment_data = []
-session = requests.Session()
-headers = {
-    "user-agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36"
-}
-
-# まず動画ページにrequestsを実行しhtmlソースを手に入れてlive_chat_replayの先頭のurlを入手
-html = requests.get(target_url)
-soup = BeautifulSoup(html.text, "html.parser")
-
-for iframe in soup.find_all("iframe"):
-    if "live_chat_replay" in iframe["src"]:
-        next_url = iframe["src"]
+# 事前に取得したYouTube API key
+YT_API_KEY = "YOURE_API_KEY"
 
 
-while 1:
+def get_chat_id(yt_url):
+    """
+    https://developers.google.com/youtube/v3/docs/videos/list?hl=ja
+    """
+    video_id = yt_url.replace("https://www.youtube.com/watch?v=", "")
+    print("video_id : ", video_id)
+
+    url = "https://www.googleapis.com/youtube/v3/videos"
+    params = {"key": YT_API_KEY, "id": video_id, "part": "liveStreamingDetails"}
+    data = requests.get(url, params=params).json()
+
+    liveStreamingDetails = data["items"][0]["liveStreamingDetails"]
+    if "activeLiveChatId" in liveStreamingDetails.keys():
+        chat_id = liveStreamingDetails["activeLiveChatId"]
+        print("get_chat_id done!")
+    else:
+        chat_id = None
+        print("NOT live")
+
+    return chat_id
+
+
+def get_chat(chat_id, pageToken, log_file):
+    """
+    https://developers.google.com/youtube/v3/live/docs/liveChatMessages/list
+    """
+    url = "https://www.googleapis.com/youtube/v3/liveChat/messages"
+    params = {
+        "key": YT_API_KEY,
+        "liveChatId": chat_id,
+        "part": "id,snippet,authorDetails",
+    }
+    if type(pageToken) == str:
+        params["pageToken"] = pageToken
+
+    data = requests.get(url, params=params).json()
 
     try:
-        html = session.get(next_url, headers=headers)
-        soup = BeautifulSoup(html.text, "lxml")
+        for item in data["items"]:
+            channelId = item["snippet"]["authorChannelId"]
+            msg = item["snippet"]["displayMessage"]
+            usr = item["authorDetails"]["displayName"]
+            # supChat   = item['snippet']['superChatDetails']
+            # supStic   = item['snippet']['superStickerDetails']
+            log_text = "[by {}  https://www.youtube.com/channel/{}]\n  {}".format(
+                usr, channelId, msg
+            )
+            with open(log_file, "a") as f:
+                print(log_text, file=f)
+                print(log_text)
+        print("start : ", data["items"][0]["snippet"]["publishedAt"])
+        print("end   : ", data["items"][-1]["snippet"]["publishedAt"])
 
-        # 次に飛ぶurlのデータがある部分をfind_allで探してsplitで整形
-        for scrp in soup.find_all("script"):
-            if 'window["ytInitialData"]' in scrp.text:
-                dict_str = scrp.next.split(" = ", 1)[1]
-
-        # javascript表記なので更に整形. falseとtrueの表記を直す
-        dict_str = dict_str.replace("false", "False")
-        dict_str = dict_str.replace("true", "True")
-
-        # 辞書形式と認識すると簡単にデータを取得できるが, 末尾に邪魔なのがあるので消しておく（「空白2つ + \n + ;」を消す）
-        dict_str = dict_str.rstrip("  \n;")
-        # 辞書形式に変換
-        dics = eval(dict_str)
-
-        # "https://www.youtube.com/live_chat_replay?continuation=" + continue_url が次のlive_chat_replayのurl
-        continue_url = dics["continuationContents"]["liveChatContinuation"][
-            "continuations"
-        ][0]["liveChatReplayContinuationData"]["continuation"]
-        next_url = (
-            "https://www.youtube.com/live_chat_replay?continuation=" + continue_url
-        )
-        # dics["continuationContents"]["liveChatContinuation"]["actions"]がコメントデータのリスト。先頭はノイズデータなので[1:]で保存
-        for samp in dics["continuationContents"]["liveChatContinuation"]["actions"][0:]:
-            comment_data.append(str(samp) + "\n")
-
-    # next_urlが入手できなくなったら終わり
     except:
-        break
+        pass
 
-# comment_data.txt にコメントデータを書き込む
-with open("comment_data.txt", mode="w", encoding="utf-8") as f:
-    f.writelines(comment_data)
+    return data["nextPageToken"]
+
+
+def main(yt_url):
+    slp_time = 10  # sec
+    iter_times = 1  # 回
+    take_time = slp_time / 60 * iter_times
+    print("{}分後終了予定".format(take_time))
+    print("work on {}".format(yt_url))
+
+    log_file = yt_url.replace("https://www.youtube.com/watch?v=", "") + ".txt"
+    with open(log_file, "a") as f:
+        print("{} のチャット欄を記録します。".format(yt_url), file=f)
+    chat_id = get_chat_id(yt_url)
+
+    nextPageToken = None
+    for _ in range(iter_times):
+        # for jj in [0]:
+        try:
+            print("\n")
+            nextPageToken = get_chat(chat_id, nextPageToken, log_file)
+            time.sleep(slp_time)
+        except:
+            break
+
+
+if __name__ == "__main__":
+    yt_url = input("Input YouTube URL > ")
+    main(yt_url)

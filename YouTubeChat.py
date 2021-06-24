@@ -5,7 +5,7 @@ import time
 import requests
 
 # YouTube API key
-YT_API_KEY = "AIzaSyBueIwgyrzDSFbzCBX-HgJZcpiLAvZ_xxY"
+YT_API_KEY = "xxxxxxxxxxxxxxx"
 
 
 # Get activeLiveChatId youtube url
